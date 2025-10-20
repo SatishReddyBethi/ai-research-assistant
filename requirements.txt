@@ -1,2 +1,7 @@
 langchain_community
 pypdf
+langchain
+langchain-text-splitters
+langchain-huggingface
+sentence-transformers
+langchain-chroma
