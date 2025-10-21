@@ -5,3 +5,5 @@ langchain-text-splitters
 langchain-huggingface
 sentence-transformers
 langchain-chroma
+#torch
+accelerate
