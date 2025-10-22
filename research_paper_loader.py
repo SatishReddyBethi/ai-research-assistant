@@ -12,6 +12,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
 from huggingface_hub import login as hf_login
 from operator import itemgetter
+from dotenv import load_dotenv
 
 def c_print(message: str):
     """
@@ -79,11 +80,12 @@ def load_research_papers(data_path: str, print_logs: bool = False):
         # c_print(f"\nMetadata of the chunk:\n{splits[0].metadata}")    
     return splits
 
-def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", persist_directory: str = ".chromaDB", print_logs: bool = False, test_vector_store: bool = False):
+def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", device: str = "cpu", persist_directory: str = ".chromaDB", print_logs: bool = False, verify_vector_store: bool = False):
     """
     Create or load the vector store from research papers.
     Args:
         model_name (str): The name of the embedding model to use. By default, we use 'all-MiniLM-L6-v2' as it is a popular and efficient model that runs locally.
+        device (str): The device to run the embedding model on. Options are 'cpu', 'cuda', or 'xpu' (for Intel XPU).
         persist_directory (str): The directory where the vector store is persisted.
         print_logs (bool): Whether to print logs during the process.
         test_vector_store (bool): Whether to perform a test query on the vector store after loading/creation.
@@ -96,7 +98,7 @@ def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", persist_di
 
     embedding_model = HuggingFaceEmbeddings(
         model_name = model_name,
-        model_kwargs = {'device': 'cpu'} # Use 'cuda' if you have a GPU
+        model_kwargs = {'device': device} # Use 'cuda' if you have a GPU
     )
 
     if os.path.exists(persist_directory):
@@ -121,7 +123,7 @@ def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", persist_di
         if print_logs:
             c_print("New vector store created and persisted.")
     
-    if test_vector_store:
+    if verify_vector_store:
         # Check if the vector store is working correctly
         c_print("\n--- Testing the vector store with a similarity search ---")
         test_query = "What is the main contribution of the 'Exergames for telerehabilitation' thesis?"
@@ -138,16 +140,21 @@ def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", persist_di
     
     return vectorstore
 
-def load_llm(model_id: str = "google/gemma-2b-it", hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False):
+def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False):
     """
     Load the local LLM using Hugging Face transformers and wrap it in a LangChain HuggingFacePipeline.
     Args:
         model_id (str): The Hugging Face model ID to load. By default, we use 'google/gemma-2b-it' as it's powerful and runs locally.
+        device (str): The device to run the model on. Options are 'cpu', 'cuda', or 'xpu' (for Intel XPU).
         hf_env_var (str): The environment variable name that contains the Hugging Face API token.
         print_logs (bool): Whether to print logs during the process.
     Returns:
         llm (HuggingFacePipeline): The loaded local LLM wrapped in a LangChain HuggingFacePipeline.
     """
+    
+    # Load environment variables from .env file
+    load_dotenv()
+
     # Get Hugging Face token from environment variable
     hf_token=os.getenv(hf_env_var)
 
@@ -160,11 +167,18 @@ def load_llm(model_id: str = "google/gemma-2b-it", hf_env_var: str = "HUGGINGFAC
     # Load the tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_id)
 
+    # Format device string for transformers
+    if device == "xpu" or device == "cuda":
+        device_map = "xpu:0"
+    else:
+        # Automatically use GPU if available
+        device_map = "auto"
+    
     # Load the model
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         dtype=torch.bfloat16, # Same range as float32 but less precision, saves memory
-        device_map="auto" # Automatically use GPU if available
+        device_map=device_map
     )
 
     # Create a LangChain text-generation pipeline from the transformers library
@@ -268,8 +282,17 @@ def run_rag_pipeline(rag_chain, query, retriever, stream_output:bool = True, pri
 if __name__ == "__main__":
     print_logs = True
     print_sources = False
-    vectorstore = create_or_load_vector_store(print_logs=print_logs)
-    llm = load_llm(print_logs=print_logs)
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.xpu.is_available():
+        # Check if Intel XPU (GPU) is available
+        device = "xpu"
+    else:
+        device =  "cpu"
+    
+    print(f"Using device: {device}")
+    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs)
+    llm = load_llm(device=device, print_logs=print_logs)
     rag_chain = build_rag_chain(llm, print_logs=print_logs)
     # Check if the RAG chain is working as expected
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 4})
