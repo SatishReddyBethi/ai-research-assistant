@@ -23,3 +23,5 @@ accelerate
 # If you have an intel XPU device, you can install the Intel Extension for PyTorch for better performance
 # torch==2.8.0
 # intel-extension-for-pytorch==2.8.0
+
+streamlit
