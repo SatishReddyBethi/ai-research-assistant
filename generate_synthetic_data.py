@@ -2,10 +2,11 @@ import json
 import os
 import random
 from tqdm import tqdm
-from research_paper_loader import c_print, load_research_papers, load_llm, build_q_and_a_rag_chain
+from research_paper_loader import load_research_papers, load_llm, build_q_and_a_rag_chain
 import torch
+from utils import CustomPrinter, get_device
 
-def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 200, replace_existing_file: bool = False):
+def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 200, replace_existing_file: bool = False, c_print = print):
     """
     Generate a synthetic dataset for fine-tuning a language model to perform
     high-quality, academic-style summarization of research paper paragraphs.
@@ -15,6 +16,7 @@ def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 
         dataset_file_path (str): Path to save the generated dataset.
         num_examples (int): Number of examples to generate for the dataset.
         replace_existing_file (bool): Whether to replace the existing dataset file if it exists.
+        c_print: CustomPrinter instance for logging.
     Returns:
         None
     """
@@ -114,15 +116,8 @@ if __name__ == "__main__":
     print_sources = False
     num_examples=200
     replace_existing_dataset=True
-
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.xpu.is_available():
-        # Check if Intel XPU (GPU) is available
-        device = "xpu"
-    else:
-        device =  "cpu"
-    
+    c_print = CustomPrinter()
+    device = get_device()
     print(f"Using device: {device}")
     splits = load_research_papers(data_path="./data", print_logs=print_logs)
     llm = load_llm(device=device, print_logs=print_logs)

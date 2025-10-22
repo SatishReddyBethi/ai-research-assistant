@@ -3,11 +3,12 @@ import intel_extension_for_pytorch as ipex
 from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
-from research_paper_loader import c_print, load_model
+from research_paper_loader import load_model
+from utils import CustomPrinter, get_device
 # import os
 
 # --- All setup remains the same ---
-def fine_tune_model(model_id:str, dataset_file_path:str, finetuned_model_path:str , device:str = "cpu", print_logs:bool = False):
+def fine_tune_model(model_id:str, dataset_file_path:str, finetuned_model_path:str , device:str = "cpu", print_logs:bool = False, c_print = print):
     model, tokenizer = load_model(
         model_id=model_id,
         device=device
@@ -86,23 +87,15 @@ if __name__ == "__main__":
     FINETUNED_MODEL_PATH = ".model_training_cache/gemma-2b-it-summarizer"
     print_logs = True
     print_sources = False
-
-    # Determine the target device
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.xpu.is_available():
-        # Check if Intel XPU (GPU) is available
-        device = "xpu"
-    else:
-        device =  "cpu"
-    
-    print(f"Using device: {device}")
+    c_print = CustomPrinter()
+    device = get_device()
+    c_print(f"Using device: {device}")
 
     # Fine-tune the model
     trainer, tokenizer = fine_tune_model(
         model_id=BASE_MODEL_ID,
         dataset_file_path=DATASET_FILE_PATH,
-        finetuned_model_paths=FINETUNED_MODEL_PATH,
+        finetuned_model_path=FINETUNED_MODEL_PATH,
         device=device,
         print_logs=print_logs
     )
@@ -122,8 +115,8 @@ if __name__ == "__main__":
     outputs = trainer.model.generate(**inputs, max_new_tokens=100)
     summary = tokenizer.decode(outputs, skip_special_tokens=True)
 
-    print("--- Generated Summary: ---")
+    c_print("Generated Summary: ---")
     # The output will include your input prompt, so we can print just the generated part.
     generated_text = summary.split("### Output:\n")[-1]
 
-    print(f"Test Paragraph:\n{test_paragraph}\nSummary:{generated_text}")
+    c_print(f"Test Paragraph:\n{test_paragraph}\nSummary:{generated_text}")

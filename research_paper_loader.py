@@ -17,37 +17,15 @@ import intel_extension_for_pytorch as ipex
 from huggingface_hub import login as hf_login
 from operator import itemgetter
 from dotenv import load_dotenv
+from utils import get_device, format_docs, CustomPrinter
 
-def c_print(message: str):
-    """
-    Custom print function for consistent logging.
-    Args:
-        message (str): The message to print.
-    Returns:
-        None
-    """
-    prefix = "-> "
-    if message.startswith("\n"):
-        prefix = "\n-> "
-        message = message[1:]
-    print(f"{prefix}{message}")
-
-def format_docs(docs):
-    """
-    Helper function to format a list of Document objects into a single string.
-    Args:
-        docs (List[Document]): List of Document objects.
-    Returns:
-        str: Concatenated string of document contents.
-    """
-    return "\n\n".join(doc.page_content for doc in docs)
-
-def load_research_papers(data_path: str, print_logs: bool = False):
+def load_research_papers(data_path: str, print_logs: bool = False, c_print = print):
     """
     Load and split research papers from the specified directory.
     Args:
         data_path (str): The path to the directory containing research papers in PDF format.
         print_logs (bool): Whether to print logs during the process.
+        c_print: CustomPrinter instance for logging.
     Returns:
         List[Document]: A list of Document objects representing the split chunks of the research papers.
     """
@@ -84,7 +62,7 @@ def load_research_papers(data_path: str, print_logs: bool = False):
         # c_print(f"\nMetadata of the chunk:\n{splits[0].metadata}")    
     return splits
 
-def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", device: str = "cpu", persist_directory: str = ".chromaDB", print_logs: bool = False, verify_vector_store: bool = False):
+def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", device: str = "cpu", persist_directory: str = ".chromaDB", print_logs: bool = False, verify_vector_store: bool = False, c_print = print):
     """
     Create or load the vector store from research papers.
     Args:
@@ -93,10 +71,10 @@ def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", device: st
         persist_directory (str): The directory where the vector store is persisted.
         print_logs (bool): Whether to print logs during the process.
         test_vector_store (bool): Whether to perform a test query on the vector store after loading/creation.
+        c_print: CustomPrinter instance for logging.
     Returns:
         vectorstore (Chroma): The loaded or newly created vector store.
     """
-
     if print_logs:
         c_print("\nInitializing embedding model...")
 
@@ -144,7 +122,7 @@ def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", device: st
     
     return vectorstore
 
-def load_model(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False):
+def load_model(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False, c_print = print):
     """
     Load the local LLM model and tokenizer from Hugging Face.
     Args:
@@ -152,11 +130,11 @@ def load_model(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_
         device (str): The device to run the model on. Options are 'cpu', 'cuda', or 'xpu' (for Intel XPU).
         hf_env_var (str): The environment variable name that contains the Hugging Face API token.
         print_logs (bool): Whether to print logs during the process.
+        c_print: CustomPrinter instance for logging.
     Returns:
         model: The loaded Hugging Face model.
         tokenizer: The loaded Hugging Face tokenizer.
     """
-
     # Load environment variables from .env file
     load_dotenv()
 
@@ -208,7 +186,7 @@ def load_model(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_
     
     return model, tokenizer
 
-def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", max_new_tokens:int = 512, hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False):
+def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", max_new_tokens:int = 512, hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False, c_print = print):
     """
     Load the local LLM using Hugging Face transformers and wrap it in a LangChain HuggingFacePipeline.
     Args:
@@ -243,12 +221,13 @@ def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", max_new_t
 
     return llm, model, tokenizer
 
-def build_q_and_a_rag_chain(llm, print_logs: bool = False):
+def build_q_and_a_rag_chain(llm, print_logs: bool = False, c_print = print):
     """
     Build a Retrieval-Augmented Generation (RAG) chain for Q&A using the provided LLM.
     Args:
         llm (HuggingFacePipeline): The local LLM for generating answers.
         print_logs (bool): Whether to print logs during the process.
+        c_print: CustomPrinter instance for logging.
     Returns:
         rag_chain: The constructed RAG chain.
     """
@@ -277,7 +256,7 @@ def build_q_and_a_rag_chain(llm, print_logs: bool = False):
 
     return rag_chain
 
-def run_rag_pipeline(rag_chain, query, retriever, stream_output:bool = True, print_logs: bool = False, print_sources: bool = False):
+def run_rag_pipeline(rag_chain, query, retriever, stream_output:bool = True, print_logs: bool = False, print_sources: bool = False, c_print = print):
     """
     Run the RAG pipeline with the given query.
     Args:
@@ -287,6 +266,7 @@ def run_rag_pipeline(rag_chain, query, retriever, stream_output:bool = True, pri
         stream_output (bool): Whether to stream the output token by token.
         print_logs (bool): Whether to print logs during the process.
         print_sources (bool): Whether to print the source documents used for answering.
+        c_print: CustomPrinter instance for logging.
     Returns:
         None
     """
@@ -301,47 +281,56 @@ def run_rag_pipeline(rag_chain, query, retriever, stream_output:bool = True, pri
 
     if stream_output:
         if print_logs:
-            c_print("Answer (Streaming):")        
-        # The.stream() method returns a generator that yields tokens as they are generated.
-        for chunk in rag_chain.stream(chain_input):
-            if print_logs:
-                # Print each chunk as it arrives
-                print(chunk, end="", flush=True)
-            full_response += chunk
+            c_print("Answer (Streaming):")
+        full_response = stream_rag_chain(rag_chain, chain_input)
     else:
         if print_logs:
             c_print("Answer:")        
         full_response = rag_chain.invoke({"question": query})
-        print(full_response)
+        if print_logs:
+            c_print(full_response)
 
     if print_logs and print_sources:
         # This can be printed before answer generation (if needed)
         c_print("\nSources: ---")
         for i, doc in enumerate(retrieved_docs):
             c_print(f"Source {i+1} (from '{doc.metadata.get('source', 'N/A')}', page {doc.metadata.get('page', 'N/A')}):")
-            print(f"\"{doc.page_content[:250]}...\"\n")
+            c_print(f"\"{doc.page_content[:250]}...\"\n")
 
     return full_response
 
 
+def stream_rag_chain(rag_chain, query:str, print_logs: bool = False, c_print = print):
+    """
+    Stream the output of the RAG chain for a given query.
+    Args:
+        rag_chain: The RAG chain to use for generation.
+        query (str): The input query.
+        print_logs (bool): Whether to print logs during the process.
+        c_print: CustomPrinter instance for logging.
+    Returns:
+        full_response (str): The complete response generated by the RAG chain.
+    """
+    for chunk in rag_chain.stream(query):
+        if print_logs:
+            # Print each chunk as it arrives
+            c_print(chunk, end="", flush=True)        
+        full_response += chunk
+
+    return full_response
+
 if __name__ == "__main__":
     print_logs = True
     print_sources = False
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.xpu.is_available():
-        # Check if Intel XPU (GPU) is available
-        device = "xpu"
-    else:
-        device =  "cpu"
-    
+    c_print = CustomPrinter()
+    device = get_device()
     print(f"Using device: {device}")
-    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs)
-    llm, _, _ = load_llm(device=device, max_new_tokens=512, print_logs=print_logs)
-    rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs)
+    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
+    llm, _, _ = load_llm(device=device, max_new_tokens=512, print_logs=print_logs, c_print=c_print)
+    rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs, c_print=c_print)
     # Check if the RAG chain is working as expected
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 4})
     query = "What is the purpose of the RehabFork system described in the papers?"
-    response = run_rag_pipeline(rag_chain, query, retriever, print_logs=print_logs, print_sources=print_sources)
+    response = run_rag_pipeline(rag_chain, query, retriever, print_logs=print_logs, print_sources=print_sources, c_print=c_print)
     if not print_logs:
         print(f"Q: {query}\nA: {response}")

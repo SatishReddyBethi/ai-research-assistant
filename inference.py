@@ -6,15 +6,17 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough, Runnab
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from operator import itemgetter
-from research_paper_loader import c_print, load_llm, format_docs, create_or_load_vector_store, build_q_and_a_rag_chain
+from research_paper_loader import load_llm, create_or_load_vector_store, build_q_and_a_rag_chain, stream_rag_chain
+from utils import CustomPrinter, get_device, format_docs
 
-def get_q_and_a_rag_chain(model_id:str, device:str = "cpu", print_logs:bool = False):
+def get_q_and_a_rag_chain(model_id:str, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Get the Retrieval-Augmented Generation (RAG) chain for Q&A using the specified LLM.
     Args:
         model_id (str): The identifier of the base LLM model.
         device (str): The device to load the model onto (e.g., "cpu", "cuda", "xpu").
         print_logs (bool): Whether to print logs during the process.
+        c_print: CustomPrinter instance for logging.
     Returns:
         rag_chain: The RAG chain for Q&A.
         base_model: The loaded base LLM model.
@@ -24,7 +26,7 @@ def get_q_and_a_rag_chain(model_id:str, device:str = "cpu", print_logs:bool = Fa
     rag_chain = build_q_and_a_rag_chain(base_llm, print_logs=print_logs)
     return rag_chain, base_model, tokenizer 
 
-def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False):
+def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Load the fine-tuned LLM by merging the PEFT-trained adapter weights into the base model.
     Args:
@@ -32,6 +34,7 @@ def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:s
         tokenizer: The tokenizer associated with the base LLM model.
         finetuned_model_path (str): Path to the fine-tuned model adapter weights.
         device (str): The device to load the model onto (e.g., "cpu", "cuda", "xpu").
+        c_print: CustomPrinter instance for logging.
     Returns:
         finetuned_llm: The fine-tuned LLM wrapped in a HuggingFacePipeline.
     """
@@ -55,7 +58,7 @@ def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:s
     finetuned_llm = HuggingFacePipeline(pipeline=finetuned_llm_pipe)
     return finetuned_llm
 
-def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False):
+def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Get the RAG chain that uses the fine-tuned LLM for summarization.
     Args:
@@ -64,6 +67,7 @@ def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, dev
         finetuned_model_path (str): Path to the fine-tuned model adapter weights.
         device (str): The device to load the model onto (e.g., "cpu", "cuda", "xpu").
         print_logs (bool): Whether to print logs during the process.
+        c_print: CustomPrinter instance for logging.
     Returns:
         summarizer_chain: The RAG chain for summarization using the fine-tuned LLM.
     """
@@ -80,55 +84,64 @@ def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, dev
 
     return summarizer_chain
 
+def get_integrated_rag_chain(model_id:str, model_save_path:str, device:str = "cpu", print_logs:bool = False, c_print = print):
+    """
+    Get the integrated RAG chain that routes between Q&A and Summarization based on the input query.
+    Args:
+        model_id (str): The identifier of the base LLM model.
+        model_save_path (str): Path to the fine-tuned model adapter weights.
+        device (str): The device to load the model onto (e.g., "cpu", "cuda", "xpu").
+        print_logs (bool): Whether to print logs during the process.
+        c_print: CustomPrinter instance for logging.
+    Returns:
+        full_chain: The integrated RAG chain with routing.
+    """
+    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(model_id=model_id, device=device, print_logs=print_logs)
+    summarizer_chain = get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path=model_save_path, device=device)
+
+    # Define a lambda function that checks the input query for keywords.
+    is_summary_request = RunnableLambda(
+        lambda x: "summarize" in x.lower() or "summary" in x.lower()
+    )
+
+    # Create the RunnableBranch that routes based on the condition.
+    full_chain = RunnableBranch(
+        (is_summary_request, summarizer_chain),
+        rag_chain, # This is the fallback if the condition is false
+    )
+    return full_chain
+
 if __name__ == "__main__":
     BASE_MODEL_ID = "google/gemma-2b-it"
     MODEL_SAVE_PATH = ".model_training_cache/gemma-2b-it-summarizer/checkpoint-225"
     print_logs = True
     print_sources = False
 
-    # Determine the target device
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.xpu.is_available():
-        # Check if Intel XPU (GPU) is available
-        device = "xpu"
-    else:
-        device =  "cpu"
-    
+    c_print = CustomPrinter()
+    device = get_device()    
     c_print(f"Using device: {device}")
 
     # Create vector store before loading models
     vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs)
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
 
-    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(model_id=BASE_MODEL_ID, device=device, print_logs=print_logs)
-    summarizer_chain = get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path=MODEL_SAVE_PATH, device=device)
-
-    # First, define a lambda function that checks the input query for keywords.
-    is_summary_request = RunnableLambda(
-        lambda x: "summarize" in x.lower() or "summary" in x.lower()
+    # Build the Integrated RAG Chain
+    full_chain = get_integrated_rag_chain(
+        model_id=BASE_MODEL_ID,
+        model_save_path=MODEL_SAVE_PATH,
+        device=device,
+        print_logs=print_logs
     )
 
-    # Now, create the branch. It takes the input string, checks the condition,
-    # and runs the appropriate chain with that same string as input.
-    full_chain = RunnableBranch(
-        (is_summary_request, summarizer_chain),
-        rag_chain, # This is the fallback if the condition is false
-    )
-
-    # --- 7. Test the Integrated Application ---
-    print("\n--- Testing the Router with a Q&A Query ---")
+    # Test the Integrated Application
+    c_print("\nTesting the Router with a Q&A Query")
     qa_query = "What is the purpose of the RehabFork system?"
-    print(f"Query: {qa_query}")
-    print("Response (Streaming):")
-    for chunk in full_chain.stream(qa_query):
-        print(chunk, end="", flush=True)
+    c_print(f"Query: {qa_query}")
+    c_print("Response (Streaming):")
+    full_response = stream_rag_chain(full_chain, qa_query)
 
-    print("\n\n--- Testing the Router with a Summarization Query ---")
+    c_print("\n\nTesting the Router with a Summarization Query")
     summary_query = "Summarize the section on the RehabFork system."
-    print(f"Query: {summary_query}")
-    print("Response (Streaming):")
-    for chunk in full_chain.stream(summary_query):
-        print(chunk, end="", flush=True)
-
-    print("\n\n--- Integration Complete ---")
+    c_print(f"Query: {summary_query}")
+    c_print("Response (Streaming):")
+    full_response = stream_rag_chain(full_chain, summary_query)
