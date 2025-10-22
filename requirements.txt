@@ -6,11 +6,19 @@ langchain-huggingface
 sentence-transformers
 langchain-chroma
 tqdm
+
+# For LLM and Fine-Tuning
+# bitsandbytes
+trl
+peft
+datasets
+
 # 'notebook' is Optional. It is for Jupyter Notebook.
 # notebook
 
 # Install torch using makefile
 # You can also use 'accelerate' package instaed of 'torch' if you just need a lightweight solution for model inference
+accelerate
 #torch
 # If you have an intel XPU device, you can install the Intel Extension for PyTorch for better performance
 # torch==2.8.0

@@ -2,7 +2,7 @@ import json
 import os
 import random
 from tqdm import tqdm
-from research_paper_loader import c_print, load_research_papers, load_llm, build_rag_chain
+from research_paper_loader import c_print, load_research_papers, load_llm, build_q_and_a_rag_chain
 import torch
 
 def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 200, replace_existing_file: bool = False):
@@ -66,6 +66,7 @@ def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 
 
     # --- 6. Generate the dataset using a progress bar ---
     generated_dataset = []
+    first_sample = True
 
     # tqdm adds a progress bar to the loop
     for split in tqdm(sampled_splits, desc="Generating Summaries"):
@@ -77,17 +78,23 @@ def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 
         # Generate the summary using the local LLM
         raw_summary = llm.invoke(prompt_text)
         
-        # Clean the generated output
-        # LLMs can sometimes add extra conversational text. We need to clean it.
-        cleaned_summary = raw_summary.strip()
+        # Remove initial promt from the generated output
+        cleaned_summary = raw_summary.split("**Expert Summary:**")[-1].strip()
         
         # Create the training example
         training_example = {
             "input": input_paragraph,
             "output": cleaned_summary
         }
-        
+
         generated_dataset.append(training_example)
+        
+        if first_sample:
+            # Show an example of the generated training data
+            c_print("\n--- Example Generated Training Example: ---")
+            print(json.dumps(training_example, indent=2))
+            first_sample = False
+        
 
     # Save the dataset to a file
     with open(dataset_file_path, 'w') as f:
@@ -119,5 +126,5 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
     splits = load_research_papers(data_path="./data", print_logs=print_logs)
     llm = load_llm(device=device, print_logs=print_logs)
-    rag_chain = build_rag_chain(llm, print_logs=print_logs)
-    generate_synthetic_data(splits, llm, "fine_tuning_dataset.jsonl", num_examples=num_examples, replace_existing_file=replace_existing_dataset)
+    rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs)
+    generate_synthetic_data(splits, llm, "fine_tuning_dataset_2.jsonl", num_examples=num_examples, replace_existing_file=replace_existing_dataset)

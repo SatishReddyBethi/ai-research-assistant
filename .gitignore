@@ -211,3 +211,6 @@ aia_venv/
 
 # ChromaDB local persistence
 .chromaDB/
+
+# Ignore fine-tuned model weights
+.model_training_cache/

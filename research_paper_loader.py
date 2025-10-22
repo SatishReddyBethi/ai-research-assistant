@@ -1,3 +1,7 @@
+import logging
+# Set the root logger to only show WARNINGs and above
+logging.basicConfig(level=logging.WARNING)
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -7,9 +11,9 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import HuggingFacePipeline
-import logging
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline#, BitsAndBytesConfig
 import torch
+import intel_extension_for_pytorch as ipex
 from huggingface_hub import login as hf_login
 from operator import itemgetter
 from dotenv import load_dotenv
@@ -140,18 +144,19 @@ def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", device: st
     
     return vectorstore
 
-def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False):
+def load_model(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False):
     """
-    Load the local LLM using Hugging Face transformers and wrap it in a LangChain HuggingFacePipeline.
+    Load the local LLM model and tokenizer from Hugging Face.
     Args:
         model_id (str): The Hugging Face model ID to load. By default, we use 'google/gemma-2b-it' as it's powerful and runs locally.
         device (str): The device to run the model on. Options are 'cpu', 'cuda', or 'xpu' (for Intel XPU).
         hf_env_var (str): The environment variable name that contains the Hugging Face API token.
         print_logs (bool): Whether to print logs during the process.
     Returns:
-        llm (HuggingFacePipeline): The loaded local LLM wrapped in a LangChain HuggingFacePipeline.
+        model: The loaded Hugging Face model.
+        tokenizer: The loaded Hugging Face tokenizer.
     """
-    
+
     # Load environment variables from .env file
     load_dotenv()
 
@@ -166,27 +171,67 @@ def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_va
 
     # Load the tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-    # Format device string for transformers
-    if device == "xpu" or device == "cuda":
-        device_map = "xpu:0"
-    else:
-        # Automatically use GPU if available
-        device_map = "auto"
     
+    # QLoRA Config for Memory Efficiency ---
+    # NOTE: QLoRA on the XPU backend is cutting-edge and can sometimes be unstable.
+    # If you encounter errors during the `trainer.train()` step, the first and best
+    # troubleshooting step is to comment out this `bnb_config` and the
+    # `quantization_config` argument in the model loading step below.
+    # This will force training in bfloat16, which uses more memory but is more stable.
+    # bnb_config = BitsAndBytesConfig(
+    #     load_in_4bit=True,
+    #     bnb_4bit_quant_type="nf4",
+    #     bnb_4bit_compute_dtype=torch.bfloat16
+    # )
+
     # Load the model
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         dtype=torch.bfloat16, # Same range as float32 but less precision, saves memory
-        device_map=device_map
+        # quantization_config=bnb_config, # Using QLoRA for memory saving. Remove if training fails.
     )
+    
+    # Optimize the model for XPU inference or training
+    # This should be done before the model is used
+    if print_logs:
+        c_print(f"Moving model to {device}...")
+    
+    if device != "cpu":
+        model.to(device)
+    
+    if print_logs:
+        c_print(f"Optimizing model for {device}...")
+    
+    if device == "xpu":
+        # Only optimize if using Intel XPU
+        model = ipex.optimize(model, dtype=torch.bfloat16) #, weights_prepack=False
+    
+    return model, tokenizer
+
+def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", max_new_tokens:int = 512, hf_env_var: str = "HUGGINGFACE_API_KEY", print_logs: bool = False):
+    """
+    Load the local LLM using Hugging Face transformers and wrap it in a LangChain HuggingFacePipeline.
+    Args:
+        model_id (str): The Hugging Face model ID to load. By default, we use 'google/gemma-2b-it' as it's powerful and runs locally.
+        device (str): The device to run the model on. Options are 'cpu', 'cuda', or 'xpu' (for Intel XPU).
+        hf_env_var (str): The environment variable name that contains the Hugging Face API token.
+        print_logs (bool): Whether to print logs during the process.
+    Returns:
+        llm (HuggingFacePipeline): The loaded local LLM wrapped in a LangChain HuggingFacePipeline.
+    """
+    model, tokenizer = load_model(
+        model_id=model_id,
+        device=device,
+        hf_env_var=hf_env_var,
+        print_logs=print_logs
+    )    
 
     # Create a LangChain text-generation pipeline from the transformers library
     pipe = pipeline(
         "text-generation",
         model=model,
         tokenizer=tokenizer,
-        max_new_tokens=512, # The maximum number of tokens to generate
+        max_new_tokens=max_new_tokens, # The maximum number of tokens to generate
         temperature=0.1
     )
 
@@ -196,11 +241,11 @@ def load_llm(model_id: str = "google/gemma-2b-it", device:str = "cpu", hf_env_va
     if print_logs:
         c_print("LLM initialized successfully.")
 
-    return llm
+    return llm, model, tokenizer
 
-def build_rag_chain(llm, print_logs: bool = False):
+def build_q_and_a_rag_chain(llm, print_logs: bool = False):
     """
-    Build the RAG chain using the provided vector store and LLM.
+    Build a Retrieval-Augmented Generation (RAG) chain for Q&A using the provided LLM.
     Args:
         llm (HuggingFacePipeline): The local LLM for generating answers.
         print_logs (bool): Whether to print logs during the process.
@@ -292,8 +337,8 @@ if __name__ == "__main__":
     
     print(f"Using device: {device}")
     vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs)
-    llm = load_llm(device=device, print_logs=print_logs)
-    rag_chain = build_rag_chain(llm, print_logs=print_logs)
+    llm, _, _ = load_llm(device=device, max_new_tokens=512, print_logs=print_logs)
+    rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs)
     # Check if the RAG chain is working as expected
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 4})
     query = "What is the purpose of the RehabFork system described in the papers?"

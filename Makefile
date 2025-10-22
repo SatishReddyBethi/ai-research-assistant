@@ -108,7 +108,8 @@ create_python_venv:
 	source aia_venv/bin/activate
 	pip install --upgrade pip
 	pip install -r requirements.txt
-	make install_torch_with_intel_xpu_support
+	# Only needed if using Intel XPU (GPU)
+	# make install_torch_with_intel_xpu_support
 
 activate_python_venv:
 	source aia_venv/bin/activate
