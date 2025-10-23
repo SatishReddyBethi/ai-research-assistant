@@ -208,6 +208,7 @@ __marimo__/
 
 # Virtual Env
 aia_venv/
+aia_venv_no_xpu
 
 # ChromaDB local persistence
 .chromaDB/

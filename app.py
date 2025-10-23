@@ -20,59 +20,90 @@ def load_resources(base_model_id:str, finetuned_model_path:str, device:str = "cp
         print_logs=print_logs,
         c_print=_c_print
     )
-    st.success("Models and application are ready!")
     return full_chain
 
 if __name__ == "__main__":
     BASE_MODEL_ID = "google/gemma-2b-it"
     MODEL_SAVE_PATH = ".model_training_cache/gemma-2b-it-summarizer/checkpoint-225"
     print_logs = True
-
     c_print = CustomPrinter()
-    c_print.set_print_fc(st.write)
-    
+    c_print.set_print_fc(st.write)    
+
+    # Initialize Streamlit UI
+    # Set the page configuration as the first Streamlit command
+    st.set_page_config(
+        page_title="AI Research Assistant",
+        page_icon="🤖",
+        layout="wide"
+    )
+
+    # Hide default Streamlit elements for a cleaner look
+    hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """
+    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+    descripton = """
+    This app is an AI-powered chatbot that can answer questions about my research papers
+    and provide expert-style summaries of technical sections.
+    """
+    with st.sidebar:
+        st.header("🤖 AI Research Assistant")
+        st.info(descripton)
+        st.markdown("---")
+        st.link_button("My GitHub", "https://github.com/SatishReddyBethi")
+        st.link_button("My LinkedIn", "https://linkedin.com/in/bethi-satish-reddy")
+
+    st.title("🤖 AI Research Assistant")
+    st.subheader("- By Satish Bethi")
+    # -----------------------------------
+    st.divider()
+    st.text(descripton)
+    # -----------------------------------
+    st.divider()
+    st.info("Ask a question about my research papers, or ask for a summary (e.g., 'What is the purpose of the RehabFork system?') or request a summary (e.g., 'Summarize the section on RehabFork').")
+
     device = get_device()
     c_print(f"Using device: {device}")
 
-    # Streamlit UI configuration
-    st.set_page_config(page_title="AI Research Assistant", layout="wide")
-    st.title("🤖 AI Research Assistant")
-    st.info("Ask a question about my research papers, or ask for a summary (e.g., 'Summarize the RehabFork system').")
-
     # Load all the resources (this will be cached)
-    try:
-        full_chain = load_resources(
-            base_model_id=BASE_MODEL_ID,
-            finetuned_model_path=MODEL_SAVE_PATH,
-            device=device,
-            print_logs=print_logs,
-            _c_print = c_print
-        )
-    except Exception as e:
-        st.error(f"An error occurred during model loading: {e}")
-        st.stop()
+    with st.spinner("Initializing the AI Assistant... This may take a moment."):
+        try:
+            full_chain = load_resources(
+                base_model_id=BASE_MODEL_ID,
+                finetuned_model_path=MODEL_SAVE_PATH,
+                device=device,
+                print_logs=print_logs,
+                _c_print = c_print
+            )
+            st.success("🤖 AI Assistant is ready!")
+        except Exception as e:
+            st.error(f"An error occurred during initialization: {e}")
+            st.stop()
 
     # Initialize chat history in session state
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Display chat messages from history on app rerun
+    # Display chat messages
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
+        with st.chat_message(message["role"], avatar=message.get("avatar")):
             st.markdown(message["content"])
-
+    
     # Accept user input
     if prompt := st.chat_input("What would you like to know?"):
         # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        # Display user message in chat message container
-        with st.chat_message("user"):
+        st.session_state.messages.append({"role": "user", "content": prompt, "avatar": "🧑‍💻"})
+        # Display user message
+        with st.chat_message("user", avatar="🧑‍💻"):
             st.markdown(prompt)
 
-        # Display assistant response in chat message container
-        with st.chat_message("assistant"):
-            # Use st.write_stream for a beautiful "typing" effect
+        # Display assistant response
+        with st.chat_message("assistant", avatar="🤖"):
+            # Use st.write_stream for the "typing" effect
             response = st.write_stream(full_chain.stream(prompt))
         
         # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        st.session_state.messages.append({"role": "assistant", "content": response, "avatar": "🤖"})
