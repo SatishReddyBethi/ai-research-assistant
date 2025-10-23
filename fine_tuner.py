@@ -1,10 +1,11 @@
 import torch
-import intel_extension_for_pytorch as ipex
 from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
 from q_and_a_rag_model import load_model
 from utils import CustomPrinter, get_device
+import os
+from dotenv import load_dotenv
 
 def format_training_prompt(example):
     # This structured format is crucial for instruction-tuned models like gemma
@@ -60,7 +61,15 @@ def fine_tune_model(model_id:str, dataset_file_path:str, finetuned_model_path:st
         processing_class=tokenizer
     )
 
+    load_dotenv()
+    use_xpu = os.getenv("USE_XPU")
+
+    if not use_xpu:
+        device = "cpu"
+
     if device == "xpu":
+        # import ipex even if not used as it loads all the required optimization for XPU
+        import intel_extension_for_pytorch as ipex
         # Empty the XPU cache (if any) to free up memory before training
         torch.xpu.empty_cache()
 

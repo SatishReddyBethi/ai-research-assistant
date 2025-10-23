@@ -1,7 +1,7 @@
 import streamlit as st
 from inference import get_integrated_rag_chain
-from q_and_a_rag_model import create_or_load_vector_store, stream_rag_chain
-from utils import CustomPrinter, get_device
+from q_and_a_rag_model import create_or_load_vector_store
+from utils import get_device
 from dotenv import load_dotenv
 import os
 import threading
@@ -14,6 +14,16 @@ import queue
 def load_resources(base_model_id:str, finetuned_model_id:str = "", finetuned_model_path:str = "", print_logs:bool = False):
     device = get_device()
     print(f"Using device: {device}")
+    
+    use_xpu = os.getenv("USE_XPU")
+
+    if not use_xpu:
+        device = "cpu"
+
+    if device == "xpu":
+        # import ipex even if not used as it loads all the required optimization for XPU
+        import intel_extension_for_pytorch as ipex
+
     # Create vector store before loading models
     vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs)
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
@@ -55,7 +65,7 @@ def run_chain_in_thread(chain, query, q, stop_event):
 
 if __name__ == "__main__":
     load_dotenv()
-    hf_username = os.getenv("HUGGINGFACE_USERNAME")    
+    hf_username = os.getenv("HUGGINGFACE_USERNAME")  
     FINETUNED_MODEL_ID = f"{hf_username}/gemma-2b-it-summarizer-research-assistant"
     # If a fine tuned model id is not given, check for local model
     if FINETUNED_MODEL_ID:

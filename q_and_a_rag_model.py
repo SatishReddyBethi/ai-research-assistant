@@ -7,15 +7,15 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.runnables import RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline#, BitsAndBytesConfig
 import torch
-import intel_extension_for_pytorch as ipex
 from operator import itemgetter
 from utils import get_device, format_docs, CustomPrinter, run_hugging_face_auth
+from dotenv import load_dotenv
 
 def load_research_papers(data_path: str, print_logs: bool = False, c_print = print):
     """
@@ -289,7 +289,6 @@ def run_rag_pipeline(rag_chain, query, retriever, stream_output:bool = True, pri
 
     return full_response
 
-
 def stream_rag_chain(rag_chain, query:str, print_logs: bool = False, c_print = print):
     """
     Stream the output of the RAG chain for a given query.
@@ -324,6 +323,15 @@ if __name__ == "__main__":
     c_print = CustomPrinter()
     device = get_device()
     print(f"Using device: {device}")
+    load_dotenv()
+    use_xpu = os.getenv("USE_XPU")
+    
+    if not use_xpu:
+        device = "cpu"
+
+    if device == "xpu":
+        # import ipex even if not used as it loads all the required optimization for XPU
+        import intel_extension_for_pytorch as ipex
     vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
     llm, _, _ = load_llm(device=device, max_new_tokens=512, print_logs=print_logs, c_print=c_print)
     rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs, c_print=c_print)

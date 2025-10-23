@@ -1,0 +1,14 @@
+# Python cache
+__pycache__/
+
+# Chroma DB
+.chromaDB
+
+# Jupyter notebook data
+.ipynb_checkpoints/
+
+# Python virtual envs
+*venv*/
+
+# Fine-tuned model cache
+.model_training_cache/

@@ -11,7 +11,7 @@ tqdm
 # bitsandbytes
 trl
 peft
-datasets
+# datasets
 
 # 'notebook' is Optional. It is for Jupyter Notebook.
 # notebook

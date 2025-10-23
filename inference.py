@@ -189,6 +189,15 @@ if __name__ == "__main__":
     device = get_device()
     c_print(f"Using device: {device}")
 
+    use_xpu = os.getenv("USE_XPU")
+    
+    if not use_xpu:
+        device = "cpu"
+
+    if device == "xpu":
+        # import ipex even if not used as it loads all the required optimization for XPU
+        import intel_extension_for_pytorch as ipex
+
     # Create vector store before loading models
     vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
