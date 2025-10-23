@@ -1,20 +1,23 @@
 import streamlit as st
 from inference import get_integrated_rag_chain
-from q_and_a_rag_model import create_or_load_vector_store
+from q_and_a_rag_model import create_or_load_vector_store, stream_rag_chain
 from utils import CustomPrinter, get_device
+from dotenv import load_dotenv
+import os
 
 # The @st.cache_resource decorator tells Streamlit to run this function only once,
 # when the app first starts. It then caches the returned objects (our models and chain)
 # in memory, so they don't have to be reloaded on every user interaction.
 @st.cache_resource
-def load_resources(base_model_id:str, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False, _c_print = print):
+def load_resources(base_model_id:str, finetuned_model_id:str = "", finetuned_model_path:str = "", device:str = "cpu", print_logs:bool = False, _c_print = print):
     # Create vector store before loading models
     vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
 
     full_chain = get_integrated_rag_chain(
         model_id=base_model_id,
-        model_save_path=finetuned_model_path,
+        finetuned_model_id=finetuned_model_id,
+        finetuned_model_path=finetuned_model_path,
         retriever=retriever,
         device=device,
         print_logs=print_logs,
@@ -22,9 +25,23 @@ def load_resources(base_model_id:str, finetuned_model_path:str, device:str = "cp
     )
     return full_chain
 
+@st.cache_resource
+def init_inference(_rag_chain):
+    # Run a test inference to initialize the model allocated memory (first run is always the slowest)
+    # This will also act as a test to know if the model is working as expected
+    response = _rag_chain.invoke("What is the purpose of the RehabFork system?")
+    print(response)
+
 if __name__ == "__main__":
+    load_dotenv()
+    hf_username = os.getenv("HUGGINGFACE_USERNAME")    
+    FINETUNED_MODEL_ID = f"{hf_username}/gemma-2b-it-summarizer-research-assistant"
+    # If a fine tuned model id is not given, check for local model
+    if FINETUNED_MODEL_ID:
+        FINETUNED_MODEL_PATH = ""
+    else:
+        FINETUNED_MODEL_PATH = os.getenv("LOCAL_FINETUNED_MODEL_PATH")
     BASE_MODEL_ID = "google/gemma-2b-it"
-    MODEL_SAVE_PATH = ".model_training_cache/gemma-2b-it-summarizer/checkpoint-225"
     print_logs = True
     c_print = CustomPrinter()
     c_print.set_print_fc(st.write)    
@@ -72,10 +89,15 @@ if __name__ == "__main__":
         try:
             full_chain = load_resources(
                 base_model_id=BASE_MODEL_ID,
-                finetuned_model_path=MODEL_SAVE_PATH,
+                finetuned_model_id=FINETUNED_MODEL_ID,
+                finetuned_model_path=FINETUNED_MODEL_PATH,
                 device=device,
                 print_logs=print_logs,
                 _c_print = c_print
+            )
+
+            init_inference(
+                _rag_chain=full_chain
             )
             st.success("🤖 AI Assistant is ready!")
         except Exception as e:
@@ -100,7 +122,7 @@ if __name__ == "__main__":
             st.markdown(prompt)
 
         # Display assistant response
-        with st.chat_message("assistant", avatar="🤖"):
+        with st.status("Generating...") and st.chat_message("assistant", avatar="🤖"):
             # Use st.write_stream for the "typing" effect
             response = st.write_stream(full_chain.stream(prompt))
         

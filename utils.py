@@ -1,4 +1,7 @@
 import torch
+import os
+from huggingface_hub import login as hf_login
+from dotenv import load_dotenv
 
 # =======================[ Classes ]=======================
 class CustomPrinter:
@@ -67,3 +70,14 @@ def format_docs(docs):
         str: Concatenated string of document contents.
     """
     return "\n\n".join(doc.page_content for doc in docs)
+
+
+def run_hugging_face_auth(hf_env_var: str = "HUGGINGFACE_API_KEY"):
+    # Load environment variables from .env file
+    load_dotenv()
+
+    # Get Hugging Face token from environment variable
+    hf_token=os.getenv(hf_env_var)
+
+    # Login to Hugging Face. Hugging Faces should automatically show a login prompt if needed.
+    hf_login(token=hf_token)

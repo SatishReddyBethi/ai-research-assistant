@@ -1,7 +1,9 @@
 .phony: 
 
 # Source: https://pytorch-extension.intel.com/installation?platform=gpu&version=v2.8.10%2Bxpu&os=linux%2Fwsl2&package=pip 
-install_torch_with_intel_xpu_support:=
+install_torch_with_intel_xpu_support:
+	# uninstall any existing packages
+	make uninstall_torch_with_intel_xpu_support
 	python -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/xpu
 	# Optional: python -m pip install torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/xpu
 	python -m pip install intel-extension-for-pytorch==2.8.10+xpu oneccl_bind_pt==2.8.0+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/
@@ -72,6 +74,7 @@ install_intel_xpu_dependencies_ubuntu_22_04:
 	# The 'torch' and 'intel-extension-for-pytorch' should be self contained and include this toolkit
 	# make install_intel_oneapi_base_toolkit_ubuntu
 
+# Note: DO NOT RUN this. The oneAPI toolkit should already be part of 'intel-extension-for-pytorch' package
 install_intel_oneapi_base_toolkit_ubuntu:	
 	# Download the key to system keyring
 	sudo apt update

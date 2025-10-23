@@ -6,6 +6,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from q_and_a_rag_model import load_llm, create_or_load_vector_store, build_q_and_a_rag_chain, stream_rag_chain
 from utils import CustomPrinter, get_device, format_docs
+from dotenv import load_dotenv
+import os
 
 def get_q_and_a_rag_chain(model_id:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
@@ -56,7 +58,7 @@ def get_q_and_a_rag_chain(model_id:str, retriever, device:str = "cpu", print_log
     )
     return rag_chain, base_model, tokenizer 
 
-def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False, c_print = print):
+def load_finetuned_llm(base_model, tokenizer, finetuned_model_id:str = "", finetuned_model_path:str = "", device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Load the fine-tuned LLM by merging the PEFT-trained adapter weights into the base model.
     Args:
@@ -71,7 +73,12 @@ def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:s
     if print_logs:
         c_print(f"Loading fine-tuned adapter from '{finetuned_model_path}'...")
     
-    finetuned_model = PeftModel.from_pretrained(base_model, finetuned_model_path)
+    if finetuned_model_id:
+        finetuned_model_source = finetuned_model_id
+    else:
+        finetuned_model_source = finetuned_model_path
+
+    finetuned_model = PeftModel.from_pretrained(base_model, finetuned_model_source)
     
     if print_logs:
         c_print("Fine-tuned model loaded successfully.")
@@ -88,7 +95,7 @@ def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:s
     finetuned_llm = HuggingFacePipeline(pipeline=finetuned_llm_pipe)
     return finetuned_llm
 
-def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):
+def get_finetuned_rag_chain(base_model, tokenizer, retriever, finetuned_model_id:str = "", finetuned_model_path:str = "", device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Get the RAG chain that uses the fine-tuned LLM for summarization.
     Args:
@@ -101,7 +108,16 @@ def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, ret
     Returns:
         summarizer_chain: The RAG chain for summarization using the fine-tuned LLM.
     """
-    finetuned_llm = load_finetuned_llm(base_model, tokenizer, finetuned_model_path, device=device, print_logs=print_logs, c_print=c_print)
+    finetuned_llm = load_finetuned_llm(
+        base_model=base_model,
+        tokenizer=tokenizer,
+        finetuned_model_id=finetuned_model_id,
+        finetuned_model_path=finetuned_model_path,
+        device=device,
+        print_logs=print_logs,
+        c_print=c_print
+    )
+
     # Chain 2: Summarizer (uses the FINE-TUNED model)
     summarizer_prompt_template = "### Input:\n{context}\n\n### Output:\n"
     summarizer_prompt = ChatPromptTemplate.from_template(summarizer_prompt_template)
@@ -114,20 +130,35 @@ def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, ret
 
     return summarizer_chain
 
-def get_integrated_rag_chain(model_id:str, model_save_path:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):
+def get_integrated_rag_chain(model_id:str, retriever, finetuned_model_id:str = "", finetuned_model_path:str = "", device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Get the integrated RAG chain that routes between Q&A and Summarization based on the input query.
     Args:
         model_id (str): The identifier of the base LLM model.
-        model_save_path (str): Path to the fine-tuned model adapter weights.
+        finetuned_model_path (str): Path to the fine-tuned model adapter weights.
         device (str): The device to load the model onto (e.g., "cpu", "cuda", "xpu").
         print_logs (bool): Whether to print logs during the process.
         c_print: CustomPrinter instance for logging.
     Returns:
         full_chain: The integrated RAG chain with routing.
     """
-    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(model_id=model_id, retriever=retriever, device=device, print_logs=print_logs, c_print=c_print)
-    summarizer_chain = get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path=model_save_path, retriever=retriever, device=device, c_print=c_print)
+    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(
+        model_id=model_id,
+        retriever=retriever,
+        device=device,
+        print_logs=print_logs,
+        c_print=c_print
+    )
+    
+    summarizer_chain = get_finetuned_rag_chain(
+        base_model=base_model,
+        tokenizer=tokenizer,
+        finetuned_model_id=finetuned_model_id,
+        finetuned_model_path=finetuned_model_path,
+        retriever=retriever,
+        device=device,
+        c_print=c_print
+    )
 
     # Define a lambda function that checks the input query for keywords.
     is_summary_request = RunnableLambda(
@@ -142,8 +173,15 @@ def get_integrated_rag_chain(model_id:str, model_save_path:str, retriever, devic
     return full_chain
 
 if __name__ == "__main__":
+    load_dotenv()
+    hf_username = os.getenv("HUGGINGFACE_USERNAME")    
+    FINETUNED_MODEL_ID = f"{hf_username}/gemma-2b-it-summarizer-research-assistant"
+    # If a fine tuned model id is not given, check for local model
+    if FINETUNED_MODEL_ID:
+        FINETUNED_MODEL_PATH = ""
+    else:
+        FINETUNED_MODEL_PATH = os.getenv("LOCAL_FINETUNED_MODEL_PATH")
     BASE_MODEL_ID = "google/gemma-2b-it"
-    MODEL_SAVE_PATH = ".model_training_cache/gemma-2b-it-summarizer/checkpoint-225"
     print_logs = True
     print_sources = False
 
@@ -158,7 +196,8 @@ if __name__ == "__main__":
     # Build the Integrated RAG Chain
     full_chain = get_integrated_rag_chain(
         model_id=BASE_MODEL_ID,
-        model_save_path=MODEL_SAVE_PATH,
+        finetuned_model_id=FINETUNED_MODEL_ID,
+        finetuned_model_path=FINETUNED_MODEL_PATH,
         retriever=retriever,
         device=device,
         print_logs=print_logs,
