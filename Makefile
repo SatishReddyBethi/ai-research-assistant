@@ -1,4 +1,4 @@
-.phony: 
+.phony: install_torch_with_intel_xpu_support uninstall_torch_with_intel_xpu_support install_intel_xpu_dependencies_ubuntu_24_04 install_intel_xpu_dependencies_ubuntu_22_04 install_intel_oneapi_base_toolkit_ubuntu verify_intel_xpu_ubuntu_dependencies create_python_venv activate_python_venv deactivate_python_venv docker_build_ai_assistant docker_run_ai_assistant docker_push_to_docker_hub
 
 # Source: https://pytorch-extension.intel.com/installation?platform=gpu&version=v2.8.10%2Bxpu&os=linux%2Fwsl2&package=pip 
 install_torch_with_intel_xpu_support:
@@ -119,3 +119,13 @@ activate_python_venv:
 
 deactivate_python_venv:
 	deactivate
+
+docker_build_ai_assistant:
+	docker build --no-cache -t ai-research-assistant .
+
+docker_run_ai_assistant:
+	docker run -p 8501:8501 ai-research-assistant
+
+docker_push_to_docker_hub:
+	docker tag ai-research-assistant $(DOCKER_USERNAME)/ai-research-assistant:1.0.0
+	docker push $(DOCKER_USERNAME)/ai-research-assistant:1.0.0
