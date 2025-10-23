@@ -4,14 +4,18 @@ from q_and_a_rag_model import create_or_load_vector_store, stream_rag_chain
 from utils import CustomPrinter, get_device
 from dotenv import load_dotenv
 import os
+import threading
+import queue
 
 # The @st.cache_resource decorator tells Streamlit to run this function only once,
 # when the app first starts. It then caches the returned objects (our models and chain)
 # in memory, so they don't have to be reloaded on every user interaction.
 @st.cache_resource
-def load_resources(base_model_id:str, finetuned_model_id:str = "", finetuned_model_path:str = "", device:str = "cpu", print_logs:bool = False, _c_print = print):
+def load_resources(base_model_id:str, finetuned_model_id:str = "", finetuned_model_path:str = "", print_logs:bool = False):
+    device = get_device()
+    print(f"Using device: {device}")
     # Create vector store before loading models
-    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
+    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs)
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
 
     full_chain = get_integrated_rag_chain(
@@ -20,8 +24,7 @@ def load_resources(base_model_id:str, finetuned_model_id:str = "", finetuned_mod
         finetuned_model_path=finetuned_model_path,
         retriever=retriever,
         device=device,
-        print_logs=print_logs,
-        c_print=_c_print
+        print_logs=print_logs
     )
     return full_chain
 
@@ -31,6 +34,24 @@ def init_inference(_rag_chain):
     # This will also act as a test to know if the model is working as expected
     response = _rag_chain.invoke("What is the purpose of the RehabFork system?")
     print(response)
+
+# Worker function to run the LLM chain in a separate thread
+def run_chain_in_thread(chain, query, q, stop_event):
+    """
+    Target function for the background thread.
+    Streams the chain's response and puts tokens into a queue.
+    """
+    try:
+        for chunk in chain.stream(query):
+            if stop_event.is_set():
+                # If the stop event is set, break the loop
+                break
+            q.put(chunk)
+    except Exception as e:
+        q.put(f"Error: {e}")
+    finally:
+        # Signal that the stream has finished
+        q.put(None)
 
 if __name__ == "__main__":
     load_dotenv()
@@ -43,8 +64,6 @@ if __name__ == "__main__":
         FINETUNED_MODEL_PATH = os.getenv("LOCAL_FINETUNED_MODEL_PATH")
     BASE_MODEL_ID = "google/gemma-2b-it"
     print_logs = True
-    c_print = CustomPrinter()
-    c_print.set_print_fc(st.write)    
 
     # Initialize Streamlit UI
     # Set the page configuration as the first Streamlit command
@@ -57,11 +76,12 @@ if __name__ == "__main__":
     # Hide default Streamlit elements for a cleaner look
     hide_streamlit_style = """
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
     </style>
     """
     st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+    
     descripton = """
     This app is an AI-powered chatbot that can answer questions about my research papers and provide expert-style summaries of technical sections.
     """
@@ -79,10 +99,7 @@ if __name__ == "__main__":
     st.text(descripton)
     # -----------------------------------
     st.divider()
-    st.info("Ask a question about my research papers, or ask for a summary (e.g., 'What is the purpose of the RehabFork system?') or request a summary (e.g., 'Summarize the section on RehabFork').")
-
-    device = get_device()
-    c_print(f"Using device: {device}")
+    st.info("Ask a question about my research papers, or ask for a summary or request a summary (e.g., 'What is the purpose of the RehabFork system?' or 'Summarize the section on RehabFork').")
 
     # Load all the resources (this will be cached)
     with st.spinner("Initializing the AI Assistant... This may take a moment."):
@@ -91,9 +108,7 @@ if __name__ == "__main__":
                 base_model_id=BASE_MODEL_ID,
                 finetuned_model_id=FINETUNED_MODEL_ID,
                 finetuned_model_path=FINETUNED_MODEL_PATH,
-                device=device,
-                print_logs=print_logs,
-                _c_print = c_print
+                print_logs=print_logs
             )
 
             init_inference(
@@ -104,27 +119,84 @@ if __name__ == "__main__":
             st.error(f"An error occurred during initialization: {e}")
             st.stop()
 
-    # Initialize chat history in session state
+    # Initialize session states
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "generating" not in st.session_state:
+        st.session_state.generating = False
 
     # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"], avatar=message.get("avatar")):
             st.markdown(message["content"])
     
-    # Accept user input
+    # This block handles the user input and STARTS the generation process
     if prompt := st.chat_input("What would you like to know?"):
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt, "avatar": "🧑‍💻"})
-        # Display user message
-        with st.chat_message("user", avatar="🧑‍💻"):
-            st.markdown(prompt)
+        if not st.session_state.generating:
+            # Add user message to history and display it
+            st.session_state.messages.append({"role": "user", "content": prompt, "avatar": "🧑‍💻"})
+            with st.chat_message("user", avatar="🧑‍💻"):
+                st.markdown(prompt)
+                print(f"User Prompt 🧑‍💻:\n{prompt}")
 
-        # Display assistant response
-        with st.status("Generating...") and st.chat_message("assistant", avatar="🤖"):
-            # Use st.write_stream for the "typing" effect
-            response = st.write_stream(full_chain.stream(prompt))
+            # Start the generation process in the background
+            st.session_state.generating = True
+            st.session_state.stop_event = threading.Event()
+            q = queue.Queue()
+            st.session_state.queue = q
+            
+            st.session_state.thread = threading.Thread(
+                target=run_chain_in_thread,
+                args=(full_chain, prompt, q, st.session_state.stop_event)
+            )
+            st.session_state.thread.start()
+            
+            # Rerun the script to update the UI
+            st.rerun()
+
+    # This block handles displaying the streaming response and the stop button
+    if st.session_state.generating:
+        full_response = ""
+        # Display the stop generating button
+        if st.button("⏹️ Stop generating"):
+            if st.session_state.stop_event:
+                st.session_state.stop_event.set()
+            st.session_state.generating = False
+            print("\nUser stopped generating!")
+            st.rerun()
+    
+        with st.status("Generating..."):
+            response_container = st.empty() 
+            print(f"Generated Answer 🤖:")
+            # Continuously check the queue for new tokens
+            while True:
+                try:
+                    token = st.session_state.queue.get(block=False)
+                    if token is None:
+                        st.session_state.generating = False
+                        break
+                    full_response += token
+                    response_container.markdown(full_response + "▌")
+                    print(token, end="", flush=True)
+                except queue.Empty:
+                    # If the queue is empty, check if the thread is still running
+                    if not st.session_state.thread.is_alive():
+                        st.session_state.generating = False
+                        break
+                    # Briefly pause to prevent a tight loop from consuming too much CPU
+                    import time
+                    time.sleep(0.1)
+            
+        # # Update status to complete
+        # st.status.update(
+        #     label="Generation Completed!", state="complete", expanded=False
+        # )
+
+        with st.chat_message("assistant", avatar="🤖"):
+            # Display final response and add to history
+            st.markdown(full_response)
+            st.session_state.messages.append({"role": "assistant", "content": full_response, "avatar": "🤖"})
         
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response, "avatar": "🤖"})
+        # Rerun one last time to clear the stop button after generation finishes
+        if not st.session_state.generating:
+            st.rerun()

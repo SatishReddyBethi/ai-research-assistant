@@ -8,10 +8,13 @@ class CustomPrinter:
     """
     A custom printer class for consistent logging.
     """
-    def __init__(self, print_fc = None, prefix: str = "-> "):
+    def __init__(self, print_fc = None, prefix: str = "-> ", print_to_console: bool = False):
         if print_fc is None:
             self.print_fc = print
+        else:
+            self.print_fc = print_fc
         self.prefix = prefix
+        self.print_to_console = print_to_console
     
     def set_print_fc(self, print_fc):
         """
@@ -41,8 +44,12 @@ class CustomPrinter:
             
         if self.print_fc == print:
             self.print_fc(f"{prefix}{message}", end=end, flush=flush)
+            if self.print_to_console:
+                print(f"{prefix}{message}", end=end, flush=flush)
         else:
             self.print_fc(f"{prefix}{message}")
+            if self.print_to_console:
+                print(f"{prefix}{message}")
 
 # =======================[ Functions ]=======================
 def get_device():
