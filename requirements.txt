@@ -1,16 +1,16 @@
-langchain_community
-pypdf
-langchain
-langchain-text-splitters
-langchain-huggingface
-sentence-transformers
-langchain-chroma
-tqdm
+pypdf==6.1.2
+langchain==1.0.2
+langchain_community==0.4
+langchain-text-splitters==1.0.0
+langchain-huggingface==1.0.0
+langchain-chroma==1.0.0
+sentence-transformers==5.1.1
+tqdm==4.67.1
 
 # For LLM and Fine-Tuning
 # bitsandbytes
-trl
-peft
+trl==0.24.0
+peft==0.17.1
 # datasets
 
 # 'notebook' is Optional. It is for Jupyter Notebook.
@@ -18,10 +18,10 @@ peft
 
 # Install torch using makefile
 # You can also use 'accelerate' package instaed of 'torch' if you just need a lightweight solution for model inference
-accelerate
+accelerate==1.11.0
 #torch
 # If you have an intel XPU device, you can install the Intel Extension for PyTorch for better performance
 # torch==2.8.0
 # intel-extension-for-pytorch==2.8.0
 
-streamlit
+streamlit==1.50.0

@@ -17,8 +17,9 @@ def load_resources(base_model_id:str, finetuned_model_id:str = "", finetuned_mod
     
     use_xpu = os.getenv("USE_XPU")
 
-    if not use_xpu:
+    if device == "xpu" and not use_xpu:
         device = "cpu"
+        print(f"USE_XPU is set to {use_xpu} so switching device to 'cpu'")
 
     if device == "xpu":
         # import ipex even if not used as it loads all the required optimization for XPU

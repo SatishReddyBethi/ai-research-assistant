@@ -162,6 +162,9 @@ def load_model(model_id: str = "google/gemma-2b-it", device:str = "cpu", print_l
     
     # Optimize the model for XPU inference or training
     # This should be done before the model is used
+    if device == "xpu":        
+        import intel_extension_for_pytorch as ipex
+
     if print_logs:
         c_print(f"Moving model to {device}...")
     
@@ -326,12 +329,14 @@ if __name__ == "__main__":
     load_dotenv()
     use_xpu = os.getenv("USE_XPU")
     
-    if not use_xpu:
+    if device == "xpu" and not use_xpu:
         device = "cpu"
+        print(f"USE_XPU is set to {use_xpu} so switching device to 'cpu'")
 
     if device == "xpu":
         # import ipex even if not used as it loads all the required optimization for XPU
         import intel_extension_for_pytorch as ipex
+
     vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
     llm, _, _ = load_llm(device=device, max_new_tokens=512, print_logs=print_logs, c_print=c_print)
     rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs, c_print=c_print)

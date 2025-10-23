@@ -122,12 +122,14 @@ if __name__ == "__main__":
     c_print(f"Using device: {device}")
     use_xpu = os.getenv("USE_XPU")
 
-    if not use_xpu:
+    if device == "xpu" and not use_xpu:
         device = "cpu"
+        print(f"USE_XPU is set to {use_xpu} so switching device to 'cpu'")
 
     if device == "xpu":
         # import ipex even if not used as it loads all the required optimization for XPU
         import intel_extension_for_pytorch as ipex
+
     splits = load_research_papers(data_path="./data", print_logs=print_logs, c_print=c_print)
     llm = load_llm(device=device, print_logs=print_logs, c_print=c_print)
     rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs, c_print=c_print)
