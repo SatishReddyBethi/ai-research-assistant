@@ -67,10 +67,18 @@ This project is an end-to-end Retrieval-Augmented Generation (RAG) pipeline that
     ```
     streamlit run app.py
     ```
+    Then, go to:
+    ```
+    http://localhost:8501
+    ```
 4. **Build and run with Docker:** To build and run the application using Docker, use the following commands:
     ```
     docker build -t ai-research-assistant .
     docker run -p 8501:8501 ai-research-assistant
+    ```
+    Then, go to:
+    ```
+    http://localhost:8501
     ```
 
 ### How It Works
