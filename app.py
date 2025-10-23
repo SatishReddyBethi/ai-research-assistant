@@ -1,35 +1,39 @@
 import streamlit as st
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from peft import PeftModel
-from langchain_huggingface import HuggingFacePipeline
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableBranch
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from operator import itemgetter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from inference import get_integrated_rag_chain
+from research_paper_loader import create_or_load_vector_store
 from utils import CustomPrinter, get_device
 
 # The @st.cache_resource decorator tells Streamlit to run this function only once,
 # when the app first starts. It then caches the returned objects (our models and chain)
 # in memory, so they don't have to be reloaded on every user interaction.
 @st.cache_resource
-def load_resources(base_model_id:str, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False):
+def load_resources(base_model_id:str, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False, _c_print = print):
+    # Create vector store before loading models
+    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
+    retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
+
     full_chain = get_integrated_rag_chain(
-        base_model_id=base_model_id,
-        finetuned_model_path=finetuned_model_path,
+        model_id=base_model_id,
+        model_save_path=finetuned_model_path,
+        retriever=retriever,
         device=device,
-        print_logs=print_logs
+        print_logs=print_logs,
+        c_print=_c_print
     )
     st.success("Models and application are ready!")
     return full_chain
 
 if __name__ == "__main__":
+    BASE_MODEL_ID = "google/gemma-2b-it"
+    MODEL_SAVE_PATH = ".model_training_cache/gemma-2b-it-summarizer/checkpoint-225"
+    print_logs = True
+
     c_print = CustomPrinter()
     c_print.set_print_fc(st.write)
     
+    device = get_device()
+    c_print(f"Using device: {device}")
+
     # Streamlit UI configuration
     st.set_page_config(page_title="AI Research Assistant", layout="wide")
     st.title("🤖 AI Research Assistant")
@@ -37,7 +41,13 @@ if __name__ == "__main__":
 
     # Load all the resources (this will be cached)
     try:
-        full_chain = load_resources()
+        full_chain = load_resources(
+            base_model_id=BASE_MODEL_ID,
+            finetuned_model_path=MODEL_SAVE_PATH,
+            device=device,
+            print_logs=print_logs,
+            _c_print = c_print
+        )
     except Exception as e:
         st.error(f"An error occurred during model loading: {e}")
         st.stop()

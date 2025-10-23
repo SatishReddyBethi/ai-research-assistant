@@ -3,7 +3,6 @@ import os
 import random
 from tqdm import tqdm
 from research_paper_loader import load_research_papers, load_llm, build_q_and_a_rag_chain
-import torch
 from utils import CustomPrinter, get_device
 
 def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 200, replace_existing_file: bool = False, c_print = print):

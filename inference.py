@@ -1,15 +1,13 @@
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import pipeline
 from peft import PeftModel
 from langchain_huggingface import HuggingFacePipeline
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableBranch
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from operator import itemgetter
 from research_paper_loader import load_llm, create_or_load_vector_store, build_q_and_a_rag_chain, stream_rag_chain
 from utils import CustomPrinter, get_device, format_docs
 
-def get_q_and_a_rag_chain(model_id:str, device:str = "cpu", print_logs:bool = False, c_print = print):
+def get_q_and_a_rag_chain(model_id:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Get the Retrieval-Augmented Generation (RAG) chain for Q&A using the specified LLM.
     Args:
@@ -23,20 +21,27 @@ def get_q_and_a_rag_chain(model_id:str, device:str = "cpu", print_logs:bool = Fa
         tokenizer: The tokenizer associated with the loaded base LLM model.
     """
     base_llm, base_model, tokenizer = load_llm(model_id=model_id, device=device, max_new_tokens=512, print_logs=print_logs, c_print=c_print)
-    
+
+    # Redid the RAG chain to match the finetuning model RAG chain
     # This prompt is instructs the LLM to answer questions 'only' based on
     # the provided context from the papers. This is a key to prevent hallucinations.
     template = """
     You are an expert research assistant. Your task is to answer questions based on the provided context.
+    
+    **Instructions:**
+    1. If the answer cannot be found in the context, write "I am sorry! I could not find the answer in the provided documents."
+    2. If you find multiple answers, combine them into a comprehensive response.
+    
     Answer the question based only on the following context.
-    If the answer cannot be found in the context, write "I am sorry! I could not find the answer in the provided documents.
-    If you find multiple answers, combine them into a comprehensive response."
 
     Context:
     {context}
 
     Question:
     {question}
+
+    Answer:
+
     """
     prompt = ChatPromptTemplate.from_template(template)
 
@@ -83,7 +88,7 @@ def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:s
     finetuned_llm = HuggingFacePipeline(pipeline=finetuned_llm_pipe)
     return finetuned_llm
 
-def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False, c_print = print):
+def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Get the RAG chain that uses the fine-tuned LLM for summarization.
     Args:
@@ -109,7 +114,7 @@ def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, dev
 
     return summarizer_chain
 
-def get_integrated_rag_chain(model_id:str, model_save_path:str, device:str = "cpu", print_logs:bool = False, c_print = print):
+def get_integrated_rag_chain(model_id:str, model_save_path:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
     Get the integrated RAG chain that routes between Q&A and Summarization based on the input query.
     Args:
@@ -121,8 +126,8 @@ def get_integrated_rag_chain(model_id:str, model_save_path:str, device:str = "cp
     Returns:
         full_chain: The integrated RAG chain with routing.
     """
-    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(model_id=model_id, device=device, print_logs=print_logs, c_print=c_print)
-    summarizer_chain = get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path=model_save_path, device=device, c_print=c_print)
+    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(model_id=model_id, retriever=retriever, device=device, print_logs=print_logs, c_print=c_print)
+    summarizer_chain = get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path=model_save_path, retriever=retriever, device=device, c_print=c_print)
 
     # Define a lambda function that checks the input query for keywords.
     is_summary_request = RunnableLambda(
@@ -143,7 +148,7 @@ if __name__ == "__main__":
     print_sources = False
 
     c_print = CustomPrinter()
-    device = get_device()    
+    device = get_device()
     c_print(f"Using device: {device}")
 
     # Create vector store before loading models
@@ -154,6 +159,7 @@ if __name__ == "__main__":
     full_chain = get_integrated_rag_chain(
         model_id=BASE_MODEL_ID,
         model_save_path=MODEL_SAVE_PATH,
+        retriever=retriever,
         device=device,
         print_logs=print_logs,
         c_print=c_print
@@ -164,10 +170,10 @@ if __name__ == "__main__":
     qa_query = "What is the purpose of the RehabFork system?"
     c_print(f"Query: {qa_query}")
     c_print("Response (Streaming):")
-    full_response = stream_rag_chain(full_chain, qa_query)
+    full_response = stream_rag_chain(full_chain, qa_query, print_logs=print_logs, c_print=c_print)
 
-    c_print("\n\nTesting the Router with a Summarization Query")
+    c_print("\nTesting the Router with a Summarization Query")
     summary_query = "Summarize the section on the RehabFork system."
     c_print(f"Query: {summary_query}")
     c_print("Response (Streaming):")
-    full_response = stream_rag_chain(full_chain, summary_query)
+    full_response = stream_rag_chain(full_chain, summary_query, print_logs=print_logs, c_print=c_print)

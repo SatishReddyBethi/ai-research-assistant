@@ -318,6 +318,8 @@ def stream_rag_chain(rag_chain, query:str, print_logs: bool = False, c_print = p
             c_print(chunk, end="", flush=True, no_prefix=True)        
         full_response += chunk
 
+    # Finish the stream and go to next line
+    c_print("", no_prefix=True)
     return full_response
 
 if __name__ == "__main__":
