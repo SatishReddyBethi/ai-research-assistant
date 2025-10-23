@@ -3,7 +3,7 @@ import intel_extension_for_pytorch as ipex
 from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
-from research_paper_loader import load_model
+from q_and_a_rag_model import load_model
 from utils import CustomPrinter, get_device
 
 def format_training_prompt(example):

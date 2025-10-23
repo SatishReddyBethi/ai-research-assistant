@@ -4,7 +4,7 @@ from langchain_huggingface import HuggingFacePipeline
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableBranch
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from research_paper_loader import load_llm, create_or_load_vector_store, build_q_and_a_rag_chain, stream_rag_chain
+from q_and_a_rag_model import load_llm, create_or_load_vector_store, build_q_and_a_rag_chain, stream_rag_chain
 from utils import CustomPrinter, get_device, format_docs
 
 def get_q_and_a_rag_chain(model_id:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):

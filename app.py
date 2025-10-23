@@ -1,6 +1,6 @@
 import streamlit as st
 from inference import get_integrated_rag_chain
-from research_paper_loader import create_or_load_vector_store
+from q_and_a_rag_model import create_or_load_vector_store
 from utils import CustomPrinter, get_device
 
 # The @st.cache_resource decorator tells Streamlit to run this function only once,
@@ -46,8 +46,7 @@ if __name__ == "__main__":
     """
     st.markdown(hide_streamlit_style, unsafe_allow_html=True)
     descripton = """
-    This app is an AI-powered chatbot that can answer questions about my research papers
-    and provide expert-style summaries of technical sections.
+    This app is an AI-powered chatbot that can answer questions about my research papers and provide expert-style summaries of technical sections.
     """
     with st.sidebar:
         st.header("🤖 AI Research Assistant")
