@@ -94,7 +94,7 @@ def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 
         if first_sample:
             # Show an example of the generated training data
             c_print("\n--- Example Generated Training Example: ---")
-            print(json.dumps(training_example, indent=2))
+            c_print(json.dumps(training_example, indent=2))
             first_sample = False
         
 
@@ -109,7 +109,7 @@ def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 
     c_print("\n--- Example from generated dataset: ---")
     with open(dataset_file_path, 'r') as f:
         first_line = f.readline()
-        print(json.dumps(json.loads(first_line), indent=2))
+        c_print(json.dumps(json.loads(first_line), indent=2))
 
 if __name__ == "__main__":
     print_logs = True
@@ -118,8 +118,8 @@ if __name__ == "__main__":
     replace_existing_dataset=True
     c_print = CustomPrinter()
     device = get_device()
-    print(f"Using device: {device}")
-    splits = load_research_papers(data_path="./data", print_logs=print_logs)
-    llm = load_llm(device=device, print_logs=print_logs)
-    rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs)
-    generate_synthetic_data(splits, llm, "fine_tuning_dataset_2.jsonl", num_examples=num_examples, replace_existing_file=replace_existing_dataset)
+    c_print(f"Using device: {device}")
+    splits = load_research_papers(data_path="./data", print_logs=print_logs, c_print=c_print)
+    llm = load_llm(device=device, print_logs=print_logs, c_print=c_print)
+    rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs, c_print=c_print)
+    generate_synthetic_data(splits, llm, "fine_tuning_dataset_2.jsonl", num_examples=num_examples, replace_existing_file=replace_existing_dataset, c_print=c_print)

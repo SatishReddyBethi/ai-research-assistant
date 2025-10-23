@@ -5,9 +5,11 @@ from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
 from research_paper_loader import load_model
 from utils import CustomPrinter, get_device
-# import os
 
-# --- All setup remains the same ---
+def format_training_prompt(example):
+    # This structured format is crucial for instruction-tuned models like gemma
+    return {"text": f"### Input:\n{example['input']}\n\n### Output:\n{example['output']}"}
+
 def fine_tune_model(model_id:str, dataset_file_path:str, finetuned_model_path:str , device:str = "cpu", print_logs:bool = False, c_print = print):
     model, tokenizer = load_model(
         model_id=model_id,
@@ -26,9 +28,6 @@ def fine_tune_model(model_id:str, dataset_file_path:str, finetuned_model_path:st
 
     # Load and Prepare the Dataset
     dataset = load_dataset("json", data_files=dataset_file_path, split="train")
-    def format_training_prompt(example):
-        # This structured format is crucial for instruction-tuned models like Gemma
-        return {"text": f"### Input:\n{example['input']}\n\n### Output:\n{example['output']}"}
     dataset = dataset.map(format_training_prompt)
 
     # SFT Configuration
@@ -97,7 +96,8 @@ if __name__ == "__main__":
         dataset_file_path=DATASET_FILE_PATH,
         finetuned_model_path=FINETUNED_MODEL_PATH,
         device=device,
-        print_logs=print_logs
+        print_logs=print_logs,
+        c_print=c_print
     )
     
     # Test the Fine-Tuned Model for Immediate Validation

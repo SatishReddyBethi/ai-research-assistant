@@ -22,8 +22,33 @@ def get_q_and_a_rag_chain(model_id:str, device:str = "cpu", print_logs:bool = Fa
         base_model: The loaded base LLM model.
         tokenizer: The tokenizer associated with the loaded base LLM model.
     """
-    base_llm, base_model, tokenizer = load_llm(model_id=model_id, device=device, max_new_tokens=512, print_logs=print_logs)
-    rag_chain = build_q_and_a_rag_chain(base_llm, print_logs=print_logs)
+    base_llm, base_model, tokenizer = load_llm(model_id=model_id, device=device, max_new_tokens=512, print_logs=print_logs, c_print=c_print)
+    
+    # This prompt is instructs the LLM to answer questions 'only' based on
+    # the provided context from the papers. This is a key to prevent hallucinations.
+    template = """
+    You are an expert research assistant. Your task is to answer questions based on the provided context.
+    Answer the question based only on the following context.
+    If the answer cannot be found in the context, write "I am sorry! I could not find the answer in the provided documents.
+    If you find multiple answers, combine them into a comprehensive response."
+
+    Context:
+    {context}
+
+    Question:
+    {question}
+    """
+    prompt = ChatPromptTemplate.from_template(template)
+
+    rag_chain = (
+        {
+            "context": retriever | format_docs,
+            "question": RunnablePassthrough()
+        }
+        | prompt
+        | base_llm
+        | StrOutputParser()
+    )
     return rag_chain, base_model, tokenizer 
 
 def load_finetuned_llm(base_model, tokenizer, finetuned_model_path:str, device:str = "cpu", print_logs:bool = False, c_print = print):
@@ -71,7 +96,7 @@ def get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path:str, dev
     Returns:
         summarizer_chain: The RAG chain for summarization using the fine-tuned LLM.
     """
-    finetuned_llm = load_finetuned_llm(base_model, tokenizer, finetuned_model_path, device=device, print_logs=print_logs)
+    finetuned_llm = load_finetuned_llm(base_model, tokenizer, finetuned_model_path, device=device, print_logs=print_logs, c_print=c_print)
     # Chain 2: Summarizer (uses the FINE-TUNED model)
     summarizer_prompt_template = "### Input:\n{context}\n\n### Output:\n"
     summarizer_prompt = ChatPromptTemplate.from_template(summarizer_prompt_template)
@@ -96,8 +121,8 @@ def get_integrated_rag_chain(model_id:str, model_save_path:str, device:str = "cp
     Returns:
         full_chain: The integrated RAG chain with routing.
     """
-    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(model_id=model_id, device=device, print_logs=print_logs)
-    summarizer_chain = get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path=model_save_path, device=device)
+    rag_chain, base_model, tokenizer = get_q_and_a_rag_chain(model_id=model_id, device=device, print_logs=print_logs, c_print=c_print)
+    summarizer_chain = get_finetuned_rag_chain(base_model, tokenizer, finetuned_model_path=model_save_path, device=device, c_print=c_print)
 
     # Define a lambda function that checks the input query for keywords.
     is_summary_request = RunnableLambda(
@@ -122,7 +147,7 @@ if __name__ == "__main__":
     c_print(f"Using device: {device}")
 
     # Create vector store before loading models
-    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs)
+    vectorstore = create_or_load_vector_store(device=device, print_logs=print_logs, c_print=c_print)
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
 
     # Build the Integrated RAG Chain
@@ -130,7 +155,8 @@ if __name__ == "__main__":
         model_id=BASE_MODEL_ID,
         model_save_path=MODEL_SAVE_PATH,
         device=device,
-        print_logs=print_logs
+        print_logs=print_logs,
+        c_print=c_print
     )
 
     # Test the Integrated Application

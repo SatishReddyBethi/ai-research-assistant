@@ -10,20 +10,6 @@ class CustomPrinter:
             self.print_fc = print
         self.prefix = prefix
     
-    def print(self, message: str):
-        """
-        Print a message with a consistent prefix.
-        Args:
-            message (str): The message to print.
-        Returns:
-            None
-        """
-        prefix = self.prefix
-        if message.startswith("\n"):
-            prefix = "\n" + prefix
-            message = message[1:]
-        self.print_fc(f"{prefix}{message}")
-
     def set_print_fc(self, print_fc):
         """
         Set a custom print function.
@@ -34,8 +20,26 @@ class CustomPrinter:
         """
         self.print_fc = print_fc
 
-    def __call__(self, message: str):
-        self.print(message)
+    def __call__(self, message: str, end="\n", flush=False, no_prefix=False):
+        """
+        Print a message with a consistent prefix.
+        Args:
+            message (str): The message to print.
+        Returns:
+            None
+        """
+        if no_prefix:
+            prefix = ""
+        else:
+            prefix = self.prefix
+            if message.startswith("\n"):
+                prefix = "\n" + prefix
+                message = message[1:]
+            
+        if self.print_fc == print:
+            self.print_fc(f"{prefix}{message}", end=end, flush=flush)
+        else:
+            self.print_fc(f"{prefix}{message}")
 
 # =======================[ Functions ]=======================
 def get_device():
