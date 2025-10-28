@@ -1,0 +1,18 @@
+services:
+  ai-research-assistant:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ai-research-assistant:1.0.0
+    command:
+      - streamlit
+      - run
+      - app.py
+    ports:
+      - 8501:8501
+    env_file:
+      - ../src/.env
+    environment:
+      - DATA_DIR_PATH=/data
+    volumes:
+      - ../data:/data:ro

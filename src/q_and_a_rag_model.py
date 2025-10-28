@@ -14,8 +14,7 @@ from langchain_huggingface import HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline#, BitsAndBytesConfig
 import torch
 from operator import itemgetter
-from utils import get_device, format_docs, CustomPrinter, run_hugging_face_auth
-from dotenv import load_dotenv
+from utils import get_device, format_docs, CustomPrinter, run_hugging_face_auth, get_env
 
 def load_research_papers(data_path: str, print_logs: bool = False, c_print = print):
     """
@@ -91,7 +90,8 @@ def create_or_load_vector_store(model_name: str = "all-MiniLM-L6-v2", device: st
         if print_logs:
             c_print("Vector store loaded successfully.")
     else:
-        splits = load_research_papers(data_path="./data", print_logs=print_logs, c_print=c_print)
+        data_path = get_env("DATA_DIR_PATH")
+        splits = load_research_papers(data_path=data_path, print_logs=print_logs, c_print=c_print)
         if print_logs:
             c_print("\nNo existing vector store found.")
             c_print(f"Creating new vector store in '{persist_directory}' folder...")
@@ -326,8 +326,7 @@ if __name__ == "__main__":
     c_print = CustomPrinter()
     device = get_device()
     print(f"Using device: {device}")
-    load_dotenv()
-    use_xpu = os.getenv("USE_XPU")
+    use_xpu = get_env("USE_XPU")
     
     if device == "xpu" and not use_xpu:
         device = "cpu"

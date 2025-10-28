@@ -1,8 +1,7 @@
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
-from utils import run_hugging_face_auth
-import os
+from utils import run_hugging_face_auth, get_env
 
 if __name__ == "__main__":
     BASE_MODEL_ID = "google/gemma-2b-it"
@@ -10,7 +9,7 @@ if __name__ == "__main__":
 
     run_hugging_face_auth()
     
-    hf_username = os.getenv("HUGGINGFACE_USERNAME")
+    hf_username = get_env("HUGGINGFACE_USERNAME")
     NEW_MODEL_NAME = f"{hf_username}/gemma-2b-it-summarizer-research-assistant"
 
     print("Loading base model...")

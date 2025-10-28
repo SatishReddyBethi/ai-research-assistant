@@ -3,9 +3,7 @@ from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
 from q_and_a_rag_model import load_model
-from utils import CustomPrinter, get_device
-import os
-from dotenv import load_dotenv
+from utils import CustomPrinter, get_device, get_env
 
 def format_training_prompt(example):
     # This structured format is crucial for instruction-tuned models like gemma
@@ -61,8 +59,7 @@ def fine_tune_model(model_id:str, dataset_file_path:str, finetuned_model_path:st
         processing_class=tokenizer
     )
 
-    load_dotenv()
-    use_xpu = os.getenv("USE_XPU")
+    use_xpu = get_env("USE_XPU")
 
     if device == "xpu" and not use_xpu:
         device = "cpu"

@@ -21,16 +21,19 @@ This project is an end-to-end Retrieval-Augmented Generation (RAG) pipeline that
 .
 ├── .gitignore
 ├── .dockerignore
-├── .env-example                    # Create a .env file using this
-├── data                            # Research Papers in PDF format
-├── Dockerfile
-├── app.py                          # Stremlit app
-├── fine_tuner.py
-├── generate_synthetic_data.py      # Generate Synthetic Dataset for Fine-tuning
-├── hugging_face_model_upload.py    # Upload model to hugging face
-├── inference.py
-├── q_and_a_rag_model.py
-├── utils.py
+├── data/                           # Research Papers in PDF format
+├── docker                             # All source code
+│   ├── docker-compose.yaml
+│   └── Dockerfile
+├── src/                            # All source code
+│   ├── .env-example                # Create a .env file using this
+│   ├── app.py                      # Stremlit app
+│   ├── fine_tuner.py
+│   ├── generate_synthetic_data.py
+│   ├── hugging_face_model_upload.py
+│   ├── inference.py
+│   ├── q_and_a_rag_model.py
+│   └── utils.py
 ├── LICENSE
 ├── Makefile
 ├── requirements.txt

@@ -2,13 +2,16 @@
 __pycache__/
 
 # Chroma DB
-.chromaDB
+**/.chromaDB
 
 # Jupyter notebook data
-.ipynb_checkpoints/
+**/.ipynb_checkpoints/
 
 # Python virtual envs
-*venv*/
+**/*venv*/
 
 # Fine-tuned model cache
-.model_training_cache/
+**/.model_training_cache/
+
+# local .env file
+**/.env

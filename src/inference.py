@@ -4,10 +4,8 @@ from langchain_huggingface import HuggingFacePipeline
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableBranch
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from q_and_a_rag_model import load_llm, create_or_load_vector_store, build_q_and_a_rag_chain, stream_rag_chain
-from utils import CustomPrinter, get_device, format_docs
-from dotenv import load_dotenv
-import os
+from q_and_a_rag_model import load_llm, create_or_load_vector_store, stream_rag_chain
+from utils import CustomPrinter, get_device, format_docs, get_env
 
 def get_q_and_a_rag_chain(model_id:str, retriever, device:str = "cpu", print_logs:bool = False, c_print = print):
     """
@@ -173,14 +171,13 @@ def get_integrated_rag_chain(model_id:str, retriever, finetuned_model_id:str = "
     return full_chain
 
 if __name__ == "__main__":
-    load_dotenv()
-    hf_username = os.getenv("HUGGINGFACE_USERNAME")    
+    hf_username = get_env("HUGGINGFACE_USERNAME")    
     FINETUNED_MODEL_ID = f"{hf_username}/gemma-2b-it-summarizer-research-assistant"
     # If a fine tuned model id is not given, check for local model
     if FINETUNED_MODEL_ID:
         FINETUNED_MODEL_PATH = ""
     else:
-        FINETUNED_MODEL_PATH = os.getenv("LOCAL_FINETUNED_MODEL_PATH")
+        FINETUNED_MODEL_PATH = get_env("LOCAL_FINETUNED_MODEL_PATH")
     BASE_MODEL_ID = "google/gemma-2b-it"
     print_logs = True
     print_sources = False
@@ -189,7 +186,7 @@ if __name__ == "__main__":
     device = get_device()
     c_print(f"Using device: {device}")
 
-    use_xpu = os.getenv("USE_XPU")
+    use_xpu = get_env("USE_XPU")
     
     if device == "xpu" and not use_xpu:
         device = "cpu"

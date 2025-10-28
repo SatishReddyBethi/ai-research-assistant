@@ -80,11 +80,13 @@ def format_docs(docs):
 
 
 def run_hugging_face_auth(hf_env_var: str = "HUGGINGFACE_API_KEY"):
-    # Load environment variables from .env file
-    load_dotenv()
-
     # Get Hugging Face token from environment variable
-    hf_token=os.getenv(hf_env_var)
+    hf_token=get_env(hf_env_var)
 
     # Login to Hugging Face. Hugging Faces should automatically show a login prompt if needed.
     hf_login(token=hf_token)
+
+def get_env(env_name: str):
+    # Load environment variables from .env file
+    load_dotenv()
+    return os.getenv(env_name)

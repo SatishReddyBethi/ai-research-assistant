@@ -3,8 +3,7 @@ import os
 import random
 from tqdm import tqdm
 from q_and_a_rag_model import load_research_papers, load_llm, build_q_and_a_rag_chain
-from utils import CustomPrinter, get_device
-from dotenv import load_dotenv
+from utils import CustomPrinter, get_device, get_env
 
 def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 200, replace_existing_file: bool = False, c_print = print):
     """
@@ -112,7 +111,6 @@ def generate_synthetic_data(splits, llm, dataset_file_path, num_examples: int = 
         c_print(json.dumps(json.loads(first_line), indent=2))
 
 if __name__ == "__main__":
-    load_dotenv()
     print_logs = True
     print_sources = False
     num_examples=200
@@ -120,7 +118,7 @@ if __name__ == "__main__":
     c_print = CustomPrinter()
     device = get_device()
     c_print(f"Using device: {device}")
-    use_xpu = os.getenv("USE_XPU")
+    use_xpu = get_env("USE_XPU")
 
     if device == "xpu" and not use_xpu:
         device = "cpu"
@@ -130,7 +128,9 @@ if __name__ == "__main__":
         # import ipex even if not used as it loads all the required optimization for XPU
         import intel_extension_for_pytorch as ipex
 
-    splits = load_research_papers(data_path="./data", print_logs=print_logs, c_print=c_print)
+    data_path = get_env("DATA_DIR_PATH")
+    splits = load_research_papers(data_path=data_path, print_logs=print_logs, c_print=c_print)
     llm = load_llm(device=device, print_logs=print_logs, c_print=c_print)
     rag_chain = build_q_and_a_rag_chain(llm, print_logs=print_logs, c_print=c_print)
     generate_synthetic_data(splits, llm, "fine_tuning_dataset_2.jsonl", num_examples=num_examples, replace_existing_file=replace_existing_dataset, c_print=c_print)
+    

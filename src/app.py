@@ -1,9 +1,7 @@
 import streamlit as st
 from inference import get_integrated_rag_chain
 from q_and_a_rag_model import create_or_load_vector_store
-from utils import get_device
-from dotenv import load_dotenv
-import os
+from utils import get_device, get_env
 import threading
 import queue
 
@@ -15,7 +13,7 @@ def load_resources(base_model_id:str, finetuned_model_id:str = "", finetuned_mod
     device = get_device()
     print(f"Using device: {device}")
     
-    use_xpu = os.getenv("USE_XPU")
+    use_xpu = get_env("USE_XPU")
 
     if device == "xpu" and not use_xpu:
         device = "cpu"
@@ -65,14 +63,13 @@ def run_chain_in_thread(chain, query, q, stop_event):
         q.put(None)
 
 if __name__ == "__main__":
-    load_dotenv()
-    hf_username = os.getenv("HUGGINGFACE_USERNAME")  
+    hf_username = get_env("HUGGINGFACE_USERNAME")  
     FINETUNED_MODEL_ID = f"{hf_username}/gemma-2b-it-summarizer-research-assistant"
     # If a fine tuned model id is not given, check for local model
     if FINETUNED_MODEL_ID:
         FINETUNED_MODEL_PATH = ""
     else:
-        FINETUNED_MODEL_PATH = os.getenv("LOCAL_FINETUNED_MODEL_PATH")
+        FINETUNED_MODEL_PATH = get_env("LOCAL_FINETUNED_MODEL_PATH")
     BASE_MODEL_ID = "google/gemma-2b-it"
     print_logs = True
 

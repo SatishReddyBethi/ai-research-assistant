@@ -120,11 +120,8 @@ activate_python_venv:
 deactivate_python_venv:
 	deactivate
 
-docker_build_ai_assistant:
-	docker build --no-cache -t ai-research-assistant .
-
 docker_run_ai_assistant:
-	docker run -p 8501:8501 ai-research-assistant
+	cd docker && docker compose up -d
 
 docker_push_to_docker_hub:
 	docker tag ai-research-assistant $(DOCKER_USERNAME)/ai-research-assistant:1.0.0
